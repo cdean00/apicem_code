@@ -30,7 +30,7 @@ def get_router_info(inputfile, outputfile):
     username = input('Enter username:')
     password = getpass()
 
-    # pc_router list to store router dictioNoneries and pc_route is a single router dictionary.
+    # pc_router list to store router dictionaries and pc_route is a single router dictionary.
     pc_routers = []
     pc_router = {}
 
