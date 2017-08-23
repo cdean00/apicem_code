@@ -16,13 +16,13 @@ def main():
 
     args = parser.parse_args()
 
-    #Load get_device_info with input and output files.
-    get_device_info(args.inputfile, args.outputfile)
+    #Load get_router_info with input and output files.
+    get_router_info(args.inputfile, args.outputfile)
 
 # Expects path to CSV with connection info w/ header device_type, username, password, and ip. See netmiko for addtl. details.
 # Writes CSV file with paycenter details for APIC-EM templates. Header for apic-em CSV are: hostname, serialNumber, platformId, subnet_id,
 # serial_ip, serial_cl_ip, cox_circuit_id, cl_circuit_id, and address.
-def get_device_info(inputfile, outputfile):
+def get_router_info(inputfile, outputfile):
 
     invalid_input_error = r"% Invalid input detected at '^' marker."
 
@@ -30,11 +30,11 @@ def get_device_info(inputfile, outputfile):
     username = input('Enter username:')
     password = getpass()
 
-    # pc_router list to store router dictioNoneries and pc_route is a single router dictioNonery.
+    # pc_router list to store router dictioNoneries and pc_route is a single router dictionary.
     pc_routers = []
     pc_router = {}
 
-    # Read csv file containing paycenter routers connection details, create dictioNonery of each row, and append the dictioNonery to pc_routers list
+    # Read csv file containing paycenter routers connection details, create dictionary of each row, and append the dictionary to pc_routers list
     with open(inputfile, 'r') as csvfile:
         dict_reader = csv.DictReader(csvfile)
         for row in dict_reader:
@@ -161,8 +161,8 @@ def get_device_info(inputfile, outputfile):
             output = net_connect.send_command('show snmp location')
             address = output
 
-            #Inserting values into pc_router dictioNonery
-            print('Creating paycenter dictioNonery...')
+            #Inserting values into pc_router dictionary
+            print('Creating paycenter dictionary...')
             pc_router['subnet_id'] = subnet_id
             pc_router['serial_cl_ip'] = serial_cl_ip
             pc_router['cox_circuit_id'] = cox_circuit_id
