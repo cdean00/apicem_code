@@ -27,12 +27,12 @@ uploaded to APIC-EM for use with PnP. See the work_file folder for examples of t
 
 Requires two strings inputfile and outputfile. Inputfile and outputfile must be filepaths to the file location.
 Both files must be CSV file formats. The inputfile is used to connect to the routers. The output file is used to write
-the information collected from the routers. Warning, the output file provided will be overwritten if it already exists.
-The inputfile header must include the following, in order:
+the information collected from the routers. The output file provided will be overwritten if it already exists.
+Netmiko is used to connect to the routers and the input file matches Netmiko's required fields.
+See [Netmiko](https://github.com/ktbyers/netmiko) for additional information on how Netmiko works.
+The inputfile header must include at least the following, in order:
 1. device_type
-2. username
-3. password
-4. ip
+2. ip
 
 The output file header is as follows, in order:
 1. serial_id
