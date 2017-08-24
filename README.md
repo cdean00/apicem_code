@@ -18,10 +18,6 @@ is used to log into each production router to gather required information that w
 CSV file will be used in another module to dynamically create the new router configuration files. Finally those files will be
 uploaded to APIC-EM for use with PnP. See the work_file folder for examples of the input and output files.
 
-### Future Improvements:
-* Multiprocesses to speed up runtime.
-* Less static methods to allow for more customization.
-
 ### Methods
 **get_router_info(inputfile, outputfile)**
 
@@ -46,3 +42,7 @@ The output file header is as follows, in order:
 
 After the router information is collected, get_router_info writes the information to a new CSV file.
 Warning, the output file will be overwritten if it already exists!
+
+### Roadmap:
+* Multiprocesses to speed up runtime.
+* Less static methods to allow for more customization.
