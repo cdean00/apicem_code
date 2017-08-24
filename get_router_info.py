@@ -42,7 +42,7 @@ def get_router_info(inputfile, outputfile):
 
     # Open CSV file to write router info to
     with open(outputfile, 'w') as csvfile:
-        fieldnames = ['subnet_id', 'serial_cl_ip', 'cox_circuit_id', 'cl_circuit_id', 'address']
+        fieldnames = ['hostname', 'loopback0', 'subnet_id', 'serial_cl_ip', 'cox_circuit_id', 'cl_circuit_id', 'address']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', lineterminator='\n')
 
         writer.writeheader()
@@ -163,6 +163,8 @@ def get_router_info(inputfile, outputfile):
 
             #Inserting values into pc_router dictionary
             print('Creating paycenter dictionary...')
+            pc_router['hostname'] = hostname[0]
+            pc_router['loopback0'] = loopback0_ip
             pc_router['subnet_id'] = subnet_id
             pc_router['serial_cl_ip'] = serial_cl_ip
             pc_router['cox_circuit_id'] = cox_circuit_id
