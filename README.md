@@ -30,6 +30,9 @@ Both files must be CSV file formats. The inputfile is used to connect to the rou
 the information collected from the routers. The output file provided will be overwritten if it already exists.
 Netmiko is used to connect to the routers and the input file matches Netmiko's required fields.
 See [Netmiko](https://github.com/ktbyers/netmiko) for additional information on how Netmiko works.
+For security, username and password are entered during runtime instead of saving in the CSV file, otherwise those would be
+required in the input CSV file.
+
 The inputfile header must include at least the following, in order:
 1. device_type
 2. ip
