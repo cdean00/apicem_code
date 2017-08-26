@@ -18,7 +18,7 @@ is used to log into each production router to gather required information that w
 CSV file will be used in another module to dynamically create the new router configuration files. Finally those files will be
 uploaded to APIC-EM for use with PnP. See the work_file folder for examples of the input and output files.
 
-### Methods
+### Methods:
 **get_router_info(inputfile, outputfile)**
 
 Requires two strings inputfile and outputfile. Inputfile and outputfile must be filepaths to the file location.
