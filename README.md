@@ -56,6 +56,6 @@ The output file header is as follows, in order:
 After the router information is collected, get_router_info writes the information to a new CSV file.
 Warning, the output file will be overwritten if it already exists!
 
-### Roadmap:
+### Roadmap
 * Multiprocesses to speed up runtime.
 * Less static methods to allow for more customization.
