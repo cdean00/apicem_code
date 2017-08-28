@@ -21,7 +21,7 @@ def main():
 
 # Expects path to CSV with connection info w/ header device_type, username, password, and ip. See netmiko for addtl. details.
 # Writes CSV file with paycenter details for APIC-EM templates. Header for apic-em CSV are: hostname, serialNumber, platformId, subnet_id,
-# serial_ip, serial_cl_ip, cox_circuit_id, cl_circuit_id, and address.
+# serial_ip, serial_ip, cox_circuit_id, cl_circuit_id, and address.
 def get_router_info(inputfile, outputfile):
 
     invalid_input_error = r"% Invalid input detected at '^' marker."
@@ -42,7 +42,7 @@ def get_router_info(inputfile, outputfile):
 
     # Open CSV file to write router info to
     with open(outputfile, 'w') as csvfile:
-        fieldnames = ['hostname', 'loopback0', 'subnet_id', 'serial_cl_ip', 'cox_circuit_id', 'cl_circuit_id', 'address']
+        fieldnames = ['hostname', 'loopback0', 'subnet_id', 'serial_ip', 'cox_circuit_id', 'cl_circuit_id', 'address']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', lineterminator='\n')
 
         writer.writeheader()
@@ -101,24 +101,31 @@ def get_router_info(inputfile, outputfile):
                 subnet_id = 'None'
 
             ########################
-            # Serial CL IP - CenturyLink IP - located at s0/0/0:0 on routers
+            # Serial IP - located on serial interface
             ########################
-            print('Finding CenturyLink IP...')
+            print('Finding Serial IP...')
 
             if serial0:
                 try:
-                    serial_cl_ip_index = output_split.index('Serial0/0/0:0')
-                    serial_cl_ip = output_split[serial_cl_ip_index + 1]
+                    serial_ip_index = output_split.index('Serial0/0/0:0')
+                    serial_ip = output_split[serial_ip_index + 1]
                 except ValueError:
                     print('Error: Interface not found on device. None will be used for field value.')
-                    serial_cl_ip = 'None'
+                    serial_ip = 'None'
             elif serial1:
                 try:
-                    serial_cl_ip_index = output_split.index('Serial0/1/0:0')
-                    serial_cl_ip = output_split[serial_cl_ip_index + 1]
+                    serial_ip_index = output_split.index('Serial0/1/0:0')
+                    serial_ip = output_split[serial_ip_index + 1]
                 except ValueError:
                     print('Error: Interface not found on device. None will be used for field value.')
-                    serial_cl_ip = 'None'
+                    serial_ip = 'None'
+
+            ########################
+            # CenturyLink IP - locating in BGP configuration
+            ########################
+            print('Finding CenturyLink IP...')
+
+            # Need to add code here
 
             ########################
             # Cox Circuit ID
@@ -166,7 +173,7 @@ def get_router_info(inputfile, outputfile):
             pc_router['hostname'] = hostname[0]
             pc_router['loopback0'] = loopback0_ip
             pc_router['subnet_id'] = subnet_id
-            pc_router['serial_cl_ip'] = serial_cl_ip
+            pc_router['serial_ip'] = serial_ip
             pc_router['cox_circuit_id'] = cox_circuit_id
             pc_router['cl_circuit_id'] = cl_circuit_id
             pc_router['address'] = address
