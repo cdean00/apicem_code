@@ -1,38 +1,29 @@
-from netmiko import ConnectHandler
+from napalm import get_network_driver
 import csv
 from pprint import pprint
 from getpass import getpass
 from socket import gethostbyaddr
 from argparse import ArgumentParser
+import sys
 
-def main():
-
-    # Parse command-line arguments
-    parser = ArgumentParser()
-    parser.add_argument('inputfile', help='''Input filename.
-                                      Must be CSV file containing connection details w/ header device_type, username, password, and ip.
-                                      See https://pynet.twb-tech.com/blog/automation/netmiko.html for details on accepted values''')
-    parser.add_argument('outputfile', help='Output filename to write device info in CSV format. Warning: file will be overwritten if exists!')
-
-    args = parser.parse_args()
+def main(args):
 
     #Load get_router_info with input and output files.
     get_router_info(args.inputfile, args.outputfile)
 
-# Expects path to CSV with connection info w/ header device_type, username, password, and ip. See netmiko for addtl. details.
-# Writes CSV file with paycenter details for APIC-EM templates. Header for apic-em CSV are: hostname, serialNumber, platformId, subnet_id,
-# serial_ip, serial_ip, cox_circuit_id, cl_circuit_id, and address.
+# Expects path to CSV with connection info w/ header hostname (FQDN or IP). See napalm for addtl. details.
+# Writes CSV file with paycenter details for Jinja2 templates. Collected values are hostname, loopback0, subnet_id,
+# serial0_ip, serial1_ip, cox_circuit_id, cl_circuit_id, and address.
 def get_router_info(inputfile, outputfile):
 
     invalid_input_error = r"% Invalid input detected at '^' marker."
 
-    # Request username and password to be used to log into routers.
+    # Request username and password used to connect to routers.
     username = input('Enter username:')
     password = getpass()
 
-    # pc_router list to store router dictionaries and pc_route is a single router dictionary.
+    # pc_router list to store each router dictionary
     pc_routers = []
-    pc_router = {}
 
     # Read csv file containing paycenter routers connection details, create dictionary of each row, and append the dictionary to pc_routers list
     with open(inputfile, 'r') as csvfile:
@@ -42,150 +33,188 @@ def get_router_info(inputfile, outputfile):
 
     # Open CSV file to write router info to
     with open(outputfile, 'w') as csvfile:
-        fieldnames = ['hostname', 'loopback0', 'subnet_id', 'serial_ip', 'cox_circuit_id', 'cl_circuit_id', 'address']
+
+        fieldnames = ['hostname', 'loopback0_ip', 'subnet_id', 'serial0_ip', 'serial1_ip', 'cl0_bgp_nei', 'cl1_bgp_nei', 'cl0_circuit_id', 'cl1_circuit_id', 'cox_circuit_id', 'address']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', lineterminator='\n')
 
         writer.writeheader()
 
-        # Add username and password inputted above to router dictioNoneries.
+        # Add username and password inputted above to router dictionaries.
         for router in pc_routers:
             router['username'] = username
             router['password'] = password
 
         for router in pc_routers:
+            # Variables used write output from routers
+            router_dict = {}
+            hostname = ''
+            loopback0_ip = ''
+            subnet_id = ''
+            serial0_ip = ''
+            serial1_ip = ''
+            cl0_bgp_nei = ''
+            cl1_bgp_nei = ''
+            cl0_circuit_id = ''
+            cl1_circuit_id = ''
+            cox_circuit_id = ''
+            address = ''
+
             # Seperate output from previous router
             print('\n--------------------------------------------------------------------------------\n')
 
-            # Lookup hostname
-            try:
-                hostname = gethostbyaddr(router['ip'])
-            except:
-                hostname = '!'
-                print('DNS lookup failed.')
-
-            print('\nConnecting to {} - {}'.format(hostname[0], router['ip']))
+            print('Connecting to {}...\n'.format(router['hostname']))
 
             # Connecting to router
-            net_connect = ConnectHandler(**router)
+            router['username'] = username
+            router['password'] = password
+            driver = get_network_driver('ios')
+            device = driver(router['hostname'], router['username'], router['password'])
+            device.open()
 
-            # Determine if s0/0/0:0 or s0/1/0:0 is in use.
-            serial0 = False
-            serial1 = False
-            output = net_connect.send_command('show interfaces summary')
-            output_lines = output.splitlines()
+            #Collect router information
+            router_facts = device.get_facts()
+            router_int_ip = device.get_interfaces_ip()
+            router_interfaces = device.get_interfaces()
+            router_bgp_neighbors = device.get_bgp_neighbors()
+            router_snmp_info = device.get_snmp_information()
 
-            for line in output_lines:
-                if '* Serial0/0/0:0' in line:
-                    serial0 = True
-                elif '* Serial0/1/0:0' in line:
-                    serial1 = True
-
-            # Issuing 'show ip int brief' to find loopback0 and serial IP
-            output = net_connect.send_command('show ip int brief')
-            output_split = output.split()
-
-            ########################
+            ################################################
             # Subnet ID
-            ########################
-            # Determine where 'Loopback0' is located in output_split list.
+            ################################################
+            # Use loopback0 to find subnet ID
             print('Finding subnet ID...')
             try:
-                loopback0_index = output_split.index('Loopback0')
-                loopback0_ip = output_split[loopback0_index + 1]
+                for key, value in router_int_ip['Loopback0']['ipv4'].items():
+                    loopback0_ip = key
 
                 #Splitting loopback_ip to pull out subnet ID (subnet ID is third octect)
                 loopback0_ip_split = loopback0_ip.split('.')
                 subnet_id = loopback0_ip_split[2]
-            except ValueError:
+
+            except KeyError:
                 print('Error: Interface not found on device. None will be used for field value.')
                 subnet_id = 'None'
 
-            ########################
+            # Debug output
+            #print('Loopback0 IP Address: {}'.format(loopback0_ip))
+            #print('subnet_id = {}'.format(subnet_id))
+
+            ################################################
             # Serial IP - located on serial interface
-            ########################
+            ################################################
             print('Finding Serial IP...')
 
-            if serial0:
-                try:
-                    serial_ip_index = output_split.index('Serial0/0/0:0')
-                    serial_ip = output_split[serial_ip_index + 1]
-                except ValueError:
-                    print('Error: Interface not found on device. None will be used for field value.')
-                    serial_ip = 'None'
-            elif serial1:
-                try:
-                    serial_ip_index = output_split.index('Serial0/1/0:0')
-                    serial_ip = output_split[serial_ip_index + 1]
-                except ValueError:
-                    print('Error: Interface not found on device. None will be used for field value.')
-                    serial_ip = 'None'
+            # List of serial IP addresses
+            serial_ip_addr = []
+            # Dictionary of serial interfaces
+            serial_interfaces = {}
+            # List of Up serial interfaces
+            serial_up = []
 
-            ########################
+            # Find all serial interfaces on router
+            for key, value in router_interfaces.items():
+                if 'Serial' in key:
+                    serial_interfaces[key] = value
+
+            # Determine serial interfaces that are in an Up state
+            for key, value in serial_interfaces.items():
+                if value['is_up']:
+                    serial_up.append(key)
+
+            # Filter by Up serial interfaces and record the IP address
+            for serial in serial_up:
+                for key, value in router_int_ip[serial]['ipv4'].items():
+                    serial_ip_addr.append(key)
+
+            # Debug output
+            #print(serial_up)
+            #pprint(serial_ip_addr)
+
+
+            # Add serial IP addresses to global variables
+            if len(serial_ip_addr) > 0:
+                serial0_ip = serial_ip_addr[0]
+            if len(serial_ip_addr) > 1:
+                serial1_ip = serial_ip_addr[1]
+
+            ################################################
             # CenturyLink IP - locating in BGP configuration
-            ########################
+            ################################################
             print('Finding CenturyLink IP...')
 
-            # Need to add code here
+            # Find CentruyLink IP from BGP neighborships and peer IP
+            bgp_peers = router_bgp_neighbors['global']['peers']
 
-            ########################
+            # Loop over bgp_peers to create list of CL IP addresses
+            cl_bgp_ip = []
+            for key, value in bgp_peers.items():
+                cl_bgp_ip.append(key)
+
+            # Debug output
+            #pprint(cl_bgp_ip)
+
+            # Add CL BGP neighbor IPs to global variables
+            if len(cl_bgp_ip) > 0:
+                cl0_bgp_nei = cl_bgp_ip[0]
+            if len(cl_bgp_ip) > 1:
+                cl1_bgp_nei = cl_bgp_ip[1]
+
+            ################################################
             # Cox Circuit ID
-            ########################
+            ################################################
             print('Finding Cox Circuit ID...')
-            #Recording Cox circuit ID which is the description on f0/0
-            output = net_connect.send_command('show run int f0/0 | inc desc')
-            if invalid_input_error not in output:
-                cox_split = output.split()
-                cox_circuit_id = cox_split[1]
-            else:
-                cox_circuit_id = 'None'
-                print('Interface not found on device. None will be used for field value.')
+            #Recording Cox circuit ID which is the description on interface f0/0
+            cox_circuit_id = router_interfaces['FastEthernet0/0']['description']
 
-            ########################
+            ################################################
             # CenturyLink Circuit ID
-            ########################
-            print('Finding CenturyLink Circuit ID...')
+            ################################################
+            print('Finding CenturyLink Circuit IDs...')
             #Recording CenturyLink circuit ID which is the description on the serial interface
-            if serial0:
-                output = net_connect.send_command('show run int Serial0/0/0:0 | inc desc')
-                if invalid_input_error not in output:
-                    cl_split = output.split()
-                    cl_circuit_id = cl_split[1]
-                else:
-                    cl_circuit_id = 'None'
-            elif serial1:
-                output = net_connect.send_command('show run int Serial0/1/0:0 | inc desc')
-                if invalid_input_error not in output:
-                    cl_split = output.split()
-                    cl_circuit_id = cl_split[1]
-                else:
-                    cl_circuit_id = 'None'
+            if len(serial_up) > 0:
+                cl0_circuit_id = router_interfaces[serial_up[0]]['description']
+            if len(serial_up) > 1:
+                cl1_circuit_id = router_interfaces[serial_up[1]]['description']
 
-            ########################
+            ################################################
             # Address
-            ########################
+            ################################################
             print('Finding address...')
             #Recording SNMP location
-            output = net_connect.send_command('show snmp location')
-            address = output
+            address = router_snmp_info['location']
 
             #Inserting values into pc_router dictionary
             print('Creating paycenter dictionary...')
-            pc_router['hostname'] = hostname[0]
-            pc_router['loopback0'] = loopback0_ip
-            pc_router['subnet_id'] = subnet_id
-            pc_router['serial_ip'] = serial_ip
-            pc_router['cox_circuit_id'] = cox_circuit_id
-            pc_router['cl_circuit_id'] = cl_circuit_id
-            pc_router['address'] = address
+            router_dict['hostname'] = router_facts['hostname']
+            router_dict['loopback0_ip'] = loopback0_ip
+            router_dict['subnet_id'] = subnet_id
+            router_dict['serial0_ip'] = serial0_ip
+            router_dict['serial1_ip'] = serial1_ip
+            router_dict['cl0_bgp_nei'] = cl0_bgp_nei
+            router_dict['cl1_bgp_nei'] = cl1_bgp_nei
+            router_dict['cl0_circuit_id'] = cl0_circuit_id
+            router_dict['cl1_circuit_id'] = cl1_circuit_id
+            router_dict['cox_circuit_id'] = cox_circuit_id
+            router_dict['address'] = address
 
             #Display router information found
             print('\n')
-            pprint(pc_router)
+            pprint(router_dict)
 
-            print('\nClosing connection to {} - {}'.format(hostname[0], router['ip']))
-            net_connect.disconnect()
+            print('\nClosing connection to {}...'.format(router['hostname']))
+            device.close()
 
-            writer.writerow(pc_router)
+            writer.writerow(router_dict)
 
 if __name__ == '__main__':
-    main()
+
+    # Parse command-line arguments
+    parser = ArgumentParser()
+    parser.add_argument('inputfile', help='''Input filename.
+                                      Must be CSV file containing hostname or IP address of router. Header name must be "hostname".
+                                      ''')
+    parser.add_argument('outputfile', help='Output filename to write device info in CSV format. Warning: file will be overwritten if exists!')
+
+    args = parser.parse_args()
+
+    main(args)
