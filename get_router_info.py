@@ -5,6 +5,7 @@ from getpass import getpass
 from socket import gethostbyaddr
 from argparse import ArgumentParser
 import sys
+import logging
 
 def main(args):
 
@@ -34,9 +35,11 @@ def get_router_info(inputfile, outputfile):
     # Open CSV file to write router info to
     with open(outputfile, 'w') as csvfile:
 
+        create_log('INFO', 'Creating CSV file')
         fieldnames = ['hostname', 'loopback0_ip', 'subnet_id', 'serial0_ip', 'serial1_ip', 'cl0_bgp_nei', 'cl1_bgp_nei', 'cl0_circuit_id', 'cl1_circuit_id', 'cox_circuit_id', 'address']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', lineterminator='\n')
 
+        create_log('INFO', 'Writing header to CSV file')
         writer.writeheader()
 
         # Add username and password inputted above to router dictionaries.
@@ -63,15 +66,23 @@ def get_router_info(inputfile, outputfile):
             print('\n--------------------------------------------------------------------------------\n')
 
             print('Connecting to {}...\n'.format(router['hostname']))
+            create_log('INFO', 'Connecting to {}...\n'.format(router['hostname']))
 
             # Connecting to router
             router['username'] = username
             router['password'] = password
             driver = get_network_driver('ios')
             device = driver(router['hostname'], router['username'], router['password'])
-            device.open()
+            try:
+                device.open()
+                create_log('INFO', 'Connection opened')
+            except:
+                print('Warning: Connection to device failed - {}\n'.format(router['hostname']))
+                create_log('WARNING', 'Warning: Connection to device timed-out - {}\n'.format(router['hostname']))
+                continue
 
             #Collect router information
+            create_log('INFO', 'Collecting router information')
             router_facts = device.get_facts()
             router_int_ip = device.get_interfaces_ip()
             router_interfaces = device.get_interfaces()
@@ -82,6 +93,7 @@ def get_router_info(inputfile, outputfile):
             # Subnet ID
             ################################################
             # Use loopback0 to find subnet ID
+            create_log('INFO', 'Finding subnet ID')
             print('Finding subnet ID...')
             try:
                 for key, value in router_int_ip['Loopback0']['ipv4'].items():
@@ -92,18 +104,20 @@ def get_router_info(inputfile, outputfile):
                 subnet_id = loopback0_ip_split[2]
 
             except KeyError:
-                print('Error: Interface not found on device. None will be used for field value.')
+                print('Warning: Interface not found on device. None will be used for field value.')
                 subnet_id = 'None'
+                create_log('WARNING', 'Interface not found on device. None will be used for field value.')
 
-            # Debug output
-            #print('Loopback0 IP Address: {}'.format(loopback0_ip))
-            #print('subnet_id = {}'.format(subnet_id))
+            # Log output
+            create_log('INFO', 'Loopback0 IP Address: {}'.format(loopback0_ip))
+            create_log('INFO', 'subnet_id = {}'.format(subnet_id))
 
             ################################################
             # Serial IP - located on serial interface
             ################################################
-            print('Finding Serial IP...')
 
+            print('Finding Serial IP...')
+            create_log('INFO', 'Finding Serial IP')
             # List of serial IP addresses
             serial_ip_addr = []
             # Dictionary of serial interfaces
@@ -126,22 +140,35 @@ def get_router_info(inputfile, outputfile):
                 for key, value in router_int_ip[serial]['ipv4'].items():
                     serial_ip_addr.append(key)
 
-            # Debug output
-            #print(serial_up)
-            #pprint(serial_ip_addr)
+            # Log output
+            create_log('INFO', 'Serial interfaces in Up state: {}'.format(serial_up))
+            create_log('INFO', 'Serial interfaces IP addresses: {}'.format(serial_ip_addr))
 
 
             # Add serial IP addresses to global variables
-            if len(serial_ip_addr) > 0:
-                serial0_ip = serial_ip_addr[0]
-            if len(serial_ip_addr) > 1:
-                serial1_ip = serial_ip_addr[1]
+            try:
+                if len(serial_ip_addr) > 0:
+                    serial0_ip = serial_ip_addr[0]
+            except KeyError:
+                print('Warning: Serial IP address was not found on device. None will be used for field value.')
+                serial0_ip = 'None'
+                create_log('WARNING','Warning: Serial IP address was not found on device. None will be used for field value.')
+            try:
+                if len(serial_ip_addr) > 1:
+                    serial1_ip = serial_ip_addr[1]
+            except KeyError:
+                print('Warning: Serial IP address was not found on device. None will be used for field value.')
+                serial1_ip = 'None'
+                create_log('WARNING','Warning: Serial IP address was not found on device. None will be used for field value.')
+
+
 
             ################################################
             # CenturyLink IP - locating in BGP configuration
             ################################################
-            print('Finding CenturyLink IP...')
 
+            print('Finding CenturyLink IP...')
+            create_log('INFO', 'Finding CenturyLink IP')
             # Find CentruyLink IP from BGP neighborships and peer IP
             bgp_peers = router_bgp_neighbors['global']['peers']
 
@@ -150,38 +177,65 @@ def get_router_info(inputfile, outputfile):
             for key, value in bgp_peers.items():
                 cl_bgp_ip.append(key)
 
-            # Debug output
-            #pprint(cl_bgp_ip)
+            # Log output
+            create_log('INFO', 'CenturyLink BGP neighbor IP addresses: {}'.format(cl_bgp_ip))
 
             # Add CL BGP neighbor IPs to global variables
-            if len(cl_bgp_ip) > 0:
-                cl0_bgp_nei = cl_bgp_ip[0]
-            if len(cl_bgp_ip) > 1:
-                cl1_bgp_nei = cl_bgp_ip[1]
+            try:
+                if len(cl_bgp_ip) > 0:
+                    cl0_bgp_nei = cl_bgp_ip[0]
+            except KeyError:
+                print('Warning: CL BGP IP address was not found on device. None will be used for field value.')
+                cl0_bgp_nei = 'None'
+                create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
+            try:
+                if len(cl_bgp_ip) > 1:
+                    cl1_bgp_nei = cl_bgp_ip[1]
+            except KeyError:
+                print('Warning: CL BGP IP address was not found on device. None will be used for field value.')
+                cl1_bgp_nei = 'None'
+                create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
 
             ################################################
             # Cox Circuit ID
             ################################################
             print('Finding Cox Circuit ID...')
+            create_log('INFO', 'Finding Cox Circuit ID')
             #Recording Cox circuit ID which is the description on interface f0/0
-            cox_circuit_id = router_interfaces['FastEthernet0/0']['description']
+            try:
+                cox_circuit_id = router_interfaces['FastEthernet0/0']['description']
+            except KeyError:
+                print('Warning: Cox circuit ID not found on FastEthernet0/0. None will be used for field value.')
+                cox_circuit_id = 'None'
+                create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
+
+            # Log output
+            create_log('INFO', 'Cox circuit ID: {}'.format(cox_circuit_id))
 
             ################################################
             # CenturyLink Circuit ID
             ################################################
             print('Finding CenturyLink Circuit IDs...')
+            create_log('INFO', 'Finding CentruyLink circuit IDs')
             #Recording CenturyLink circuit ID which is the description on the serial interface
             if len(serial_up) > 0:
                 cl0_circuit_id = router_interfaces[serial_up[0]]['description']
             if len(serial_up) > 1:
                 cl1_circuit_id = router_interfaces[serial_up[1]]['description']
 
+            # Log output
+            create_log('INFO', 'CenturyLink circuit IDs: {}, {}'.format(cl0_circuit_id, cl1_circuit_id))
+
             ################################################
             # Address
             ################################################
             print('Finding address...')
+            create_log('INFO', 'Finding physical address')
             #Recording SNMP location
             address = router_snmp_info['location']
+
+            # Log output
+            create_log('INFO', 'Address: {}'.format(address))
 
             #Inserting values into pc_router dictionary
             print('Creating paycenter dictionary...')
@@ -202,9 +256,26 @@ def get_router_info(inputfile, outputfile):
             pprint(router_dict)
 
             print('\nClosing connection to {}...'.format(router['hostname']))
+            create_log('INFO', '\nClosing connection to {}...'.format(router['hostname']))
             device.close()
+            create_log('INFO', 'Connection closed.')
 
             writer.writerow(router_dict)
+
+def create_log(level, message):
+    logging.basicConfig(filename='get_router_info.log', format='%(asctime)s %(levelname)s:%(message)s')
+    logging.basicConfig(format='%(asctime)s %(Levelname)s:%(message)s')
+
+    if level is 'DEBUG':
+        logging.debug(message)
+    if level is 'INFO':
+        logging.info(message)
+    if level is 'WARNING':
+        logging.warning(message)
+    if level is 'ERROR':
+        logging.error(message)
+    if level is 'CRITICAL':
+        logging.critical(message)
 
 if __name__ == '__main__':
 

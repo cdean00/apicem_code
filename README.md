@@ -5,7 +5,7 @@ Python scripts used for APIC-EM projects.
 Python 3.6
 
 ### Requires
-Napalm
+Netmiko
 
 csv
 
@@ -37,15 +37,21 @@ the information collected from the routers. The output_file will be overwritten 
 Requires two strings inputfile and outputfile. Inputfile and outputfile must be filepaths to the file location.
 Both files must be CSV file formats. The inputfile is used to connect to the routers. The output file is used to write
 the information collected from the routers. The output file provided will be overwritten if it already exists.
-Napalm is used to connect to the routers and requires the hostname or IP of the router in a CSV file.
-See [NAPALM](https://github.com/napalm-automation/napalm) for additional information.
+Netmiko is used to connect to the routers and the input file matches Netmiko's required fields.
+See [Netmiko](https://github.com/ktbyers/netmiko) for additional information on how Netmiko works.
 For security, username and password are entered during runtime instead of saving in the CSV file, otherwise those would be
 required in the input CSV file.
 
-The inputfile header only requires "hostname". The hostname can be the hostname or IP address of the router.
+The inputfile header must include at least the following, in order:
+1. device_type
+2. ip
 
-The output file header is "hostname,loopback0_ip,subnet_id,serial0_ip,serial1_ip,cl0_bgp_nei,cl1_bgp_nei,cl0_circuit_id,cl1_circuit_id,cox_circuit_id,address".
-
+The output file header is as follows, in order:
+1. serial_id
+2. serial_cl_ip
+3. cox_circuit_id
+4. cl_circuit_id
+5. address
 
 After the router information is collected, get_router_info writes the information to a new CSV file.
 Warning, the output file will be overwritten if it already exists!
