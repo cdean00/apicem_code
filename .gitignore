@@ -98,3 +98,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Output files (e.g. log files)
+.log
