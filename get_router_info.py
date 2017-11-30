@@ -6,6 +6,7 @@ from socket import gethostbyaddr
 from argparse import ArgumentParser
 import sys
 import logging
+import time
 
 def main(args):
 
@@ -16,6 +17,10 @@ def main(args):
 # Writes CSV file with paycenter details for Jinja2 templates. Collected values are hostname, loopback0, subnet_id,
 # serial0_ip, serial1_ip, cox_circuit_id, cl_circuit_id, and address.
 def get_router_info(inputfile, outputfile):
+
+    #Creating logging objects
+    logging.basicConfig(filename='get_router_info.log', filemode='a', format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(Levelname)s:%(message)s')
 
     invalid_input_error = r"% Invalid input detected at '^' marker."
 
@@ -35,11 +40,11 @@ def get_router_info(inputfile, outputfile):
     # Open CSV file to write router info to
     with open(outputfile, 'w') as csvfile:
 
-        create_log('INFO', 'Creating CSV file')
+        logging.info('Creating CSV file')
         fieldnames = ['hostname', 'loopback0_ip', 'subnet_id', 'serial0_ip', 'serial1_ip', 'cl0_bgp_nei', 'cl1_bgp_nei', 'cl0_circuit_id', 'cl1_circuit_id', 'cox_circuit_id', 'address']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', lineterminator='\n')
 
-        create_log('INFO', 'Writing header to CSV file')
+        logging.info('Writing header to CSV file')
         writer.writeheader()
 
         # Add username and password inputted above to router dictionaries.
@@ -66,7 +71,7 @@ def get_router_info(inputfile, outputfile):
             print('\n--------------------------------------------------------------------------------\n')
 
             print('Connecting to {}...\n'.format(router['hostname']))
-            create_log('INFO', 'Connecting to {}...\n'.format(router['hostname']))
+            logging.info('Connecting to {}'.format(router['hostname']))
 
             # Connecting to router
             router['username'] = username
@@ -75,14 +80,15 @@ def get_router_info(inputfile, outputfile):
             device = driver(router['hostname'], router['username'], router['password'])
             try:
                 device.open()
-                create_log('INFO', 'Connection opened')
+                logging.info('Connection opened')
+                time.sleep(1)
             except:
                 print('Warning: Connection to device failed - {}\n'.format(router['hostname']))
-                create_log('WARNING', 'Warning: Connection to device timed-out - {}\n'.format(router['hostname']))
+                logging.warning('Warning: Connection to device timed-out - {}\n'.format(router['hostname']))
                 continue
 
             #Collect router information
-            create_log('INFO', 'Collecting router information')
+            logging.info('Collecting router information')
             router_facts = device.get_facts()
             router_int_ip = device.get_interfaces_ip()
             router_interfaces = device.get_interfaces()
@@ -93,7 +99,7 @@ def get_router_info(inputfile, outputfile):
             # Subnet ID
             ################################################
             # Use loopback0 to find subnet ID
-            create_log('INFO', 'Finding subnet ID')
+            logging.info('Finding subnet ID')
             print('Finding subnet ID...')
             try:
                 for key, value in router_int_ip['Loopback0']['ipv4'].items():
@@ -104,20 +110,22 @@ def get_router_info(inputfile, outputfile):
                 subnet_id = loopback0_ip_split[2]
 
             except KeyError:
-                print('Warning: Interface not found on device. None will be used for field value.')
+                logging.warning('Loopback0 not found on device. None will be used for loopback0 and subnet ID .')
+                print('Warning: Loopback0 not found on device. None will be used for loopback0 and subnet ID.')
+                loopback0_ip = 'None'
                 subnet_id = 'None'
-                create_log('WARNING', 'Interface not found on device. None will be used for field value.')
+                continue
 
             # Log output
-            create_log('INFO', 'Loopback0 IP Address: {}'.format(loopback0_ip))
-            create_log('INFO', 'subnet_id = {}'.format(subnet_id))
+            logging.info('Loopback0 IP Address: {}'.format(loopback0_ip))
+            logging.info('subnet_id = {}'.format(subnet_id))
 
             ################################################
             # Serial IP - located on serial interface
             ################################################
 
             print('Finding Serial IP...')
-            create_log('INFO', 'Finding Serial IP')
+            logging.info('Finding Serial IP')
             # List of serial IP addresses
             serial_ip_addr = []
             # Dictionary of serial interfaces
@@ -141,8 +149,8 @@ def get_router_info(inputfile, outputfile):
                     serial_ip_addr.append(key)
 
             # Log output
-            create_log('INFO', 'Serial interfaces in Up state: {}'.format(serial_up))
-            create_log('INFO', 'Serial interfaces IP addresses: {}'.format(serial_ip_addr))
+            logging.info('Serial interfaces in Up state: {}'.format(serial_up))
+            logging.info('Serial interfaces IP addresses: {}'.format(serial_ip_addr))
 
 
             # Add serial IP addresses to global variables
@@ -151,15 +159,17 @@ def get_router_info(inputfile, outputfile):
                     serial0_ip = serial_ip_addr[0]
             except KeyError:
                 print('Warning: Serial IP address was not found on device. None will be used for field value.')
-                serial0_ip = 'None'
                 create_log('WARNING','Warning: Serial IP address was not found on device. None will be used for field value.')
+                serial0_ip = 'None'
+                continue
             try:
                 if len(serial_ip_addr) > 1:
                     serial1_ip = serial_ip_addr[1]
             except KeyError:
                 print('Warning: Serial IP address was not found on device. None will be used for field value.')
-                serial1_ip = 'None'
                 create_log('WARNING','Warning: Serial IP address was not found on device. None will be used for field value.')
+                serial1_ip = 'None'
+                continue
 
 
 
@@ -168,9 +178,15 @@ def get_router_info(inputfile, outputfile):
             ################################################
 
             print('Finding CenturyLink IP...')
-            create_log('INFO', 'Finding CenturyLink IP')
+            logging.info('Finding CenturyLink IP')
             # Find CentruyLink IP from BGP neighborships and peer IP
-            bgp_peers = router_bgp_neighbors['global']['peers']
+            try:
+                bgp_peers = router_bgp_neighbors['global']['peers']
+            except KeyError:
+                print('Warning: CenturyLink BGP peers not found. None will be used for field value.')
+                create_log('WARNING','Warning: CenturyLink BGP peers not found. None will be used for field value.')
+                bgp_peers = 'None'
+                continue
 
             # Loop over bgp_peers to create list of CL IP addresses
             cl_bgp_ip = []
@@ -178,7 +194,7 @@ def get_router_info(inputfile, outputfile):
                 cl_bgp_ip.append(key)
 
             # Log output
-            create_log('INFO', 'CenturyLink BGP neighbor IP addresses: {}'.format(cl_bgp_ip))
+            logging.info('CenturyLink BGP neighbor IP addresses: {}'.format(cl_bgp_ip))
 
             # Add CL BGP neighbor IPs to global variables
             try:
@@ -188,6 +204,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: CL BGP IP address was not found on device. None will be used for field value.')
                 cl0_bgp_nei = 'None'
                 create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
+                continue
             try:
                 if len(cl_bgp_ip) > 1:
                     cl1_bgp_nei = cl_bgp_ip[1]
@@ -195,28 +212,31 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: CL BGP IP address was not found on device. None will be used for field value.')
                 cl1_bgp_nei = 'None'
                 create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
+                continue
 
             ################################################
             # Cox Circuit ID
             ################################################
             print('Finding Cox Circuit ID...')
-            create_log('INFO', 'Finding Cox Circuit ID')
+            logging.info('Finding Cox Circuit ID')
             #Recording Cox circuit ID which is the description on interface f0/0
             try:
                 cox_circuit_id = router_interfaces['FastEthernet0/0']['description']
             except KeyError:
                 print('Warning: Cox circuit ID not found on FastEthernet0/0. None will be used for field value.')
+                create_log('WARNING','Warning: Cox circuit ID was not found on device. None will be used for field value.')
                 cox_circuit_id = 'None'
-                create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
+
+                continue
 
             # Log output
-            create_log('INFO', 'Cox circuit ID: {}'.format(cox_circuit_id))
+            logging.info('Cox circuit ID: {}'.format(cox_circuit_id))
 
             ################################################
             # CenturyLink Circuit ID
             ################################################
             print('Finding CenturyLink Circuit IDs...')
-            create_log('INFO', 'Finding CentruyLink circuit IDs')
+            logging.info('Finding CentruyLink circuit IDs')
             #Recording CenturyLink circuit ID which is the description on the serial interface
             if len(serial_up) > 0:
                 cl0_circuit_id = router_interfaces[serial_up[0]]['description']
@@ -224,18 +244,18 @@ def get_router_info(inputfile, outputfile):
                 cl1_circuit_id = router_interfaces[serial_up[1]]['description']
 
             # Log output
-            create_log('INFO', 'CenturyLink circuit IDs: {}, {}'.format(cl0_circuit_id, cl1_circuit_id))
+            logging.info('CenturyLink circuit IDs: {}, {}'.format(cl0_circuit_id, cl1_circuit_id))
 
             ################################################
             # Address
             ################################################
             print('Finding address...')
-            create_log('INFO', 'Finding physical address')
+            logging.info('Finding physical address')
             #Recording SNMP location
             address = router_snmp_info['location']
 
             # Log output
-            create_log('INFO', 'Address: {}'.format(address))
+            logging.info('Address: {}'.format(address))
 
             #Inserting values into pc_router dictionary
             print('Creating paycenter dictionary...')
@@ -255,15 +275,16 @@ def get_router_info(inputfile, outputfile):
             print('\n')
             pprint(router_dict)
 
+            #Closing connection to router
             print('\nClosing connection to {}...'.format(router['hostname']))
-            create_log('INFO', '\nClosing connection to {}...'.format(router['hostname']))
+            logging.info('\nClosing connection to {}...'.format(router['hostname']))
             device.close()
-            create_log('INFO', 'Connection closed.')
+            logging.info('Connection closed.')
 
             writer.writerow(router_dict)
 
 def create_log(level, message):
-    logging.basicConfig(filename='get_router_info.log', format='%(asctime)s %(levelname)s:%(message)s')
+    logging.basicConfig(filename='get_router_info.log', filemode='a', format='%(asctime)s %(levelname)s:%(message)s')
     logging.basicConfig(format='%(asctime)s %(Levelname)s:%(message)s')
 
     if level is 'DEBUG':
