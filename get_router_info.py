@@ -85,15 +85,21 @@ def get_router_info(inputfile, outputfile):
             except:
                 print('Warning: Connection to device failed - {}\n'.format(router['hostname']))
                 logging.warning('Warning: Connection to device timed-out - {}\n'.format(router['hostname']))
-                #continue
+                continue
+
 
             #Collect router information
             logging.info('Collecting router information')
-            router_facts = device.get_facts()
-            router_int_ip = device.get_interfaces_ip()
-            router_interfaces = device.get_interfaces()
-            router_bgp_neighbors = device.get_bgp_neighbors()
-            router_snmp_info = device.get_snmp_information()
+            try:
+                router_facts = device.get_facts()
+                router_int_ip = device.get_interfaces_ip()
+                router_interfaces = device.get_interfaces()
+                router_bgp_neighbors = device.get_bgp_neighbors()
+                router_snmp_info = device.get_snmp_information()
+            except:
+                print('Error: Unexpected error loading router information. Skipping to next router.')
+                logging.error('Unexpected error: NAPALM failed to get router information. Skipping to next router.')
+                continue
 
             ################################################
             # Subnet ID
@@ -114,7 +120,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: Loopback0 not found on device. None will be used for loopback0 and subnet ID.')
                 loopback0_ip = 'None'
                 subnet_id = 'None'
-                #continue
+
 
             # Log output
             logging.info('Loopback0 IP Address: {}'.format(loopback0_ip))
@@ -161,7 +167,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: Serial IP address was not found on device. None will be used for field value.')
                 create_log('WARNING','Warning: Serial IP address was not found on device. None will be used for field value.')
                 serial0_ip = 'None'
-                #continue
+
             try:
                 if len(serial_ip_addr) > 1:
                     serial1_ip = serial_ip_addr[1]
@@ -169,7 +175,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: Serial IP address was not found on device. None will be used for field value.')
                 create_log('WARNING','Warning: Serial IP address was not found on device. None will be used for field value.')
                 serial1_ip = 'None'
-                #continue
+
 
 
 
@@ -186,7 +192,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: CenturyLink BGP peers not found. None will be used for field value.')
                 create_log('WARNING','Warning: CenturyLink BGP peers not found. None will be used for field value.')
                 bgp_peers = 'None'
-                #continue
+
 
             # Loop over bgp_peers to create list of CL IP addresses
             cl_bgp_ip = []
@@ -204,7 +210,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: CL BGP IP address was not found on device. None will be used for field value.')
                 cl0_bgp_nei = 'None'
                 create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
-                #continue
+
             try:
                 if len(cl_bgp_ip) > 1:
                     cl1_bgp_nei = cl_bgp_ip[1]
@@ -212,7 +218,7 @@ def get_router_info(inputfile, outputfile):
                 print('Warning: CL BGP IP address was not found on device. None will be used for field value.')
                 cl1_bgp_nei = 'None'
                 create_log('WARNING','Warning: CL BGP IP address was not found on device. None will be used for field value.')
-                #continue
+
 
             ################################################
             # Cox Circuit ID
@@ -227,7 +233,7 @@ def get_router_info(inputfile, outputfile):
                 create_log('WARNING','Warning: Cox circuit ID was not found on device. None will be used for field value.')
                 cox_circuit_id = 'None'
 
-                #continue
+
 
             # Log output
             logging.info('Cox circuit ID: {}'.format(cox_circuit_id))
